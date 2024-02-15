@@ -47,7 +47,6 @@ Example:
 
 ```python
 import ida_venv
-import venv
 from pathlib import Path
 
 venv_path = Path(Path.home(), ".venvs", "my_venv")
@@ -59,10 +58,23 @@ ida_venv.create_venv(venv_path)
 # activate the venv
 ida_venv.activate_venv(venv_path, dependencies=["dep1", "dep2"])
 
-# Do ida stuff tha require networkx
+# Do ida stuff tha require the dependencies
 
 # deactivate the venv [Optional if quiting ida]
 ida_venv.deactivate_venv()
+```
+
+or using a context manager:
+
+```python
+import ida_venv
+from pathlib import Path
+
+venv_path = Path(Path.home(), ".venvs", "my_venv")
+
+with ida_venv.venv_context(venv_path, dependencies=["dep1", "dep2"]):
+    # Do ida stuff tha require the dependencies
+
 ```
 
 ### Use the provided convenience function
@@ -75,5 +87,5 @@ Example:
 ```python
 
 # Create a new venv (if it doesn't exist), install dependencies a and run the script
-run_in_env(script="path-to-your-script", dependencies=["dep1", "dep2"])
+run_script_in_env(script="path-to-your-script", dependencies=["dep1", "dep2"])
 ```
