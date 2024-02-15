@@ -6,6 +6,7 @@ import site
 import subprocess
 import sys
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import NotRequired, TypedDict
 from venv import create
@@ -35,11 +36,12 @@ PYTHON_EXECUTABLE_PATH = {
 }
 
 
-def activate_venv(venv_path: Path) -> None:
+def _activate_venv(venv_path: Path) -> None:
     base_path = str(venv_path.resolve())
     venv_dict = {
         "VIRTUAL_ENV": base_path,
         "_OLD_VIRTUAL_PATH": os.environ.pop("PATH", ""),
+        "_OLD_SYS_PATH": sys.path,
         "_OLD_PREFIX": sys.prefix,
     }
 
@@ -71,10 +73,27 @@ def activate_venv(venv_path: Path) -> None:
     site.addsitedir(path)
 
     sys.path[:] = sys.path[prev_length:] + sys.path[0:prev_length]
-    sys.prefix = sys.exec_prefix = venv_dict["VIRTUAL_ENV"]
+    sys.prefix = sys.exec_prefix = base_path
+
+
+def create_venv(venv_path: Path) -> None:
+    with get_context():
+        create(venv_path, system_site_packages=True, symlinks=False, with_pip=True)
+
+
+def activate_venv(venv_path: Path, dependencies: list[str] | None = None) -> None:
+    print("[IDAVenv] activate_venv")
+    if not venv_path.is_dir():
+        create_venv(venv_path)
+
+    _activate_venv(venv_path)
+
+    if dependencies:
+        install_dependencies(venv_path=venv_path, dependencies=dependencies)
 
 
 def deactivate_venv() -> None:
+    print("[IDAVenv] deactivate_venv")
     venv_dicts = json.loads(os.environ.get("IDAVenvs", "[]"))
     if not venv_dicts:
         return
@@ -85,9 +104,22 @@ def deactivate_venv() -> None:
 
     # restore old path
     os.environ["PATH"] = os.environ.pop("_OLD_VIRTUAL_PATH", "")
+    sys.path = venv_dict["_OLD_SYS_PATH"]
     # restore prefix
     sys.prefix = sys.exec_prefix = venv_dict["_OLD_PREFIX"]
     os.environ["IDAVenvs"] = json.dumps(venv_dicts)
+
+    # TODO! improve this
+    to_remove = []
+    for name, module in sys.modules.items():
+        try:
+            if module.__file__.startswith(venv_dict["VIRTUAL_ENV"]):
+                to_remove.append(name)
+        except AttributeError:
+            pass
+
+    for name in to_remove:
+        del sys.modules[name]
 
 
 def install_dependencies(venv_path: Path, dependencies: list[str]) -> None:
@@ -114,49 +146,51 @@ def change_executable(executable: str):
 
 
 def get_context():
+    print(f"{os.name = }")
     if os.name == "nt":
-        # On windows we can query the python executable used by ida
-        import ida_registry
-
-        executable = str(
-            Path(ida_registry.reg_read_string("Python3TargetDLL")).parent
-            / ("python.exe")
-        )
+        executable = Path(sys.base_prefix, "python.exe")
     elif os.name == "posix":
         # On Linux we use system python
-        executable = f"{sys.base_prefix}/bin/python3"
+        executable = Path(sys.base_prefix, "bin", "python3")
     else:
         # java/jython
         raise RuntimeError("Jython not supported (yet?)")
-    return change_executable(executable)
+    print(executable)
+    return change_executable(str(executable))
 
 
-def run_in_env(
-    script: str | None = None, dependencies: list[str] | None = None
+@contextmanager
+def venv_context(venv_path: Path, dependencies: list[str] | None = None):
+    activate_venv(venv_path=venv_path, dependencies=dependencies)
+    yield
+    deactivate_venv()
+
+
+def run_script_in_env(
+    script_path: str | None = None,
+    venv_path: Path | None = None,
+    dependencies: list[str] | None = None,
 ) -> None:
-    if not script:
-        script = ida_kernwin.ask_file(
+    if not script_path:
+        script_path = ida_kernwin.ask_file(
             0,
             "*.py|*.*",
             "Select script",
         )
-    if not script:
+    if not script_path:
         return
 
-    parent_dir = os.environ.get("WORKON_HOME", str(Path(script).parent))
+    script = Path(script_path).resolve()
+    if not script.is_file():
+        return
 
-    venv = Path(parent_dir, f".venvs/{Path(script).stem}")
-    with get_context():
-        create(venv, system_site_packages=True, symlinks=False, with_pip=True)
+    parent_dir = os.environ.get("IDAVENV_VENV_DIR", str(script.parent))
 
-    activate_venv(venv_path=venv)
-
-    if dependencies:
-        install_dependencies(venv_path=venv, dependencies=dependencies)
-
-    sys.path.append(parent_dir)
-    runpy.run_path(script, run_name="__main__")
-    deactivate_venv()
+    if not venv_path:
+        venv_path = Path(parent_dir, f".venvs/{script.stem}")
+    with venv_context(venv_path=venv, dependencies=dependencies):
+        sys.path.append(parent_dir)
+        runpy.run_path(str(script), run_name="__main__")
 
 
 def _validate_file(filename):
@@ -167,36 +201,43 @@ def _validate_file(filename):
     raise argparse.ArgumentTypeError(f"{filename} is not a valid file")
 
 
-def _process_module_args(args: list[str]):
+@dataclass
+class ModuleArgsNamespace:
+    venv: Path | None = None
+    dependencies: list[str] | None = None
+    requirements_file: Path | None = None
+
+
+def _parse_module_args(args: list[str]) -> ModuleArgsNamespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("-v", "--venv", type=Path)
 
     dependencies_group = parser.add_mutually_exclusive_group()
     dependencies_group.add_argument("-r", "--requirements-file", type=_validate_file)
     dependencies_group.add_argument("-d", "--dependencies", nargs="*", type=str)
-    parsed_args, _ = parser.parse_known_args(args)
 
-    if parsed_args.venv:
-        with get_context():
-            create(Path(parsed_args.venv), system_site_packages=True, symlinks=False)
-        activate_venv(venv_path=Path(parsed_args.venv))
+    namespace = ModuleArgsNamespace()
+    parsed_args, _ = parser.parse_known_args(args, namespace=namespace)
 
-        if not (parsed_args.dependencies or parsed_args.requirements_file):
-            return
+    return parsed_args
 
-        if parsed_args.dependencies:
-            dependencies = parsed_args.dependencies
-        elif parsed_args.requirements_file:
-            dependencies = [
-                str(dep)
-                for dep in pkg_resources.parse_requirements(
-                    parsed_args.requirements_file.read_text()
-                )
-            ]
-        else:
-            dependencies = []
 
-        install_dependencies(venv_path=parsed_args.venv, dependencies=dependencies)
+def _process_module_args(args: ModuleArgsNamespace):
+    if not args.venv:
+        return
+
+    dependencies = []
+    if args.dependencies:
+        dependencies = args.dependencies
+    elif args.requirements_file:
+        dependencies = [
+            str(dep)
+            for dep in pkg_resources.parse_requirements(
+                args.requirements_file.read_text()
+            )
+        ]
+
+    activate_venv(venv_path=args.venv, dependencies=dependencies)
 
 
 class ActionDeclaration(TypedDict):
@@ -264,7 +305,9 @@ class IDAVenvPlugin(ida_idaapi.plugin_t):
         ActionDeclaration(
             name=f"{PLUGIN_NAME}:run",
             label="Script file in venv",
-            handler=ActionHandler(name=f"{PLUGIN_NAME}:run", callback=run_in_env),
+            handler=ActionHandler(
+                name=f"{PLUGIN_NAME}:run", callback=run_script_in_env
+            ),
             shortcut="Ctrl+Alt+F7",
             tooltip="Runs script in venv",
             menu_location="File/Script file...",
@@ -277,7 +320,8 @@ class IDAVenvPlugin(ida_idaapi.plugin_t):
         register_actions(actions=self.actions)
         args = ida_loader.get_plugin_options(PLUGIN_NAME)
         if args:
-            _process_module_args(args=args.split(":"))
+            parsed_args = _parse_module_args(args=args.split(":"))
+            _process_module_args(args=parsed_args)
 
         print(f"[{PLUGIN_NAME}] initialization complete")
         # Return KEEP instead of OK to keep the
