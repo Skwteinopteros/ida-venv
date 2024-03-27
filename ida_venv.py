@@ -112,8 +112,11 @@ def deactivate_venv() -> None:
     # TODO! improve this
     to_remove = []
     for name, module in sys.modules.items():
-        if module.__file__ and module.__file__.startswith(venv_dict["VIRTUAL_ENV"]):
-            to_remove.append(name)
+        try:
+            if module.__file__.startswith(venv_dict["VIRTUAL_ENV"]):
+                to_remove.append(name)
+        except AttributeError:
+            pass
 
     for name in to_remove:
         del sys.modules[name]
