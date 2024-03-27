@@ -86,6 +86,6 @@ Example:
 
 ```python
 
-# Create a new venv (if it doesn't exist), install dependencies a and run the script
-run_script_in_env(script="path-to-your-script", dependencies=["dep1", "dep2"])
+# Create a new venv (if it doesn't exist), install dependencies and run the script
+run_script_in_env(script_path="path-to-your-script", dependencies=["dep1", "dep2"])
 ```

@@ -112,11 +112,8 @@ def deactivate_venv() -> None:
     # TODO! improve this
     to_remove = []
     for name, module in sys.modules.items():
-        try:
-            if module.__file__.startswith(venv_dict["VIRTUAL_ENV"]):
-                to_remove.append(name)
-        except AttributeError:
-            pass
+        if module.__file__ and module.__file__.startswith(venv_dict["VIRTUAL_ENV"]):
+            to_remove.append(name)
 
     for name in to_remove:
         del sys.modules[name]
@@ -188,7 +185,7 @@ def run_script_in_env(
 
     if not venv_path:
         venv_path = Path(parent_dir, f".venvs/{script.stem}")
-    with venv_context(venv_path=venv, dependencies=dependencies):
+    with venv_context(venv_path=venv_path, dependencies=dependencies):
         sys.path.append(parent_dir)
         runpy.run_path(str(script), run_name="__main__")
 
