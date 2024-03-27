@@ -146,7 +146,6 @@ def change_executable(executable: str):
 
 
 def get_context():
-    print(f"{os.name = }")
     if os.name == "nt":
         executable = Path(sys.base_prefix, "python.exe")
     elif os.name == "posix":
@@ -155,7 +154,6 @@ def get_context():
     else:
         # java/jython
         raise RuntimeError("Jython not supported (yet?)")
-    print(executable)
     return change_executable(str(executable))
 
 
