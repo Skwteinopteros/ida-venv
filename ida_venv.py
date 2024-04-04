@@ -122,7 +122,9 @@ def deactivate_venv() -> None:
         del sys.modules[name]
 
 
-def install_dependencies(venv_path: Path, dependencies: list[str]) -> None:
+def install_dependencies(
+    venv_path: Path, dependencies: list[str], *, pip_args: list[str] | None = None
+) -> None:
     if not dependencies:
         return
 
@@ -130,9 +132,9 @@ def install_dependencies(venv_path: Path, dependencies: list[str]) -> None:
 
     cmd = [python_path, "-m", "pip", "install"]
     cmd.extend(dependencies)
-    result = subprocess.run(cmd, capture_output=True)
-    if result.returncode:
-        print(result)
+    if pip_args:
+        cmd.extend(pip_args)
+    subprocess.run(cmd, check=True)
 
 
 @contextmanager
