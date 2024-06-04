@@ -297,9 +297,9 @@ class IDAVenvPlugin(ida_idaapi.plugin_t):
     # in the actions.
 
     flags = ida_idaapi.PLUGIN_HIDE
-    comment = "A test plugin"
-    help = "No help - this is just a test"
-    wanted_name = "Hello World"
+    comment = "Plugin to help with using venvs in IDA Pro."
+    help = " See https://github.com/Skwteinopteros/ida-venv?tab=readme-ov-file#usage"
+    wanted_name = "IDAVenv"
     wanted_hotkey = ""
     actions = [
         ActionDeclaration(
