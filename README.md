@@ -4,7 +4,7 @@ An IDAPYthon plugin to create and use virtual environments.
 
 ## Instalation
 
-Copy (or link) `./ida_venv.py` to `$UDAUSR/plugins` user directory.
+Copy (or link) `./ida_venv.py` to `$IDAUSR/plugins` user directory.
 More info on the user directory:  https://hex-rays.com/blog/igors-tip-of-the-week-33-idas-user-directory-idausr/
 
 ## Usage
