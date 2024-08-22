@@ -89,3 +89,13 @@ Example:
 # Create a new venv (if it doesn't exist), install dependencies and run the script
 run_script_in_env(script_path="path-to-your-script", dependencies=["dep1", "dep2"])
 ```
+
+## Star history
+
+<a href="https://star-history.com/#skwteinopteros/ida-venv&Date">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=skwteinopteros/ida-venv&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=skwteinopteros/ida-venv&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=skwteinopteros/ida-venv&type=Date" />
+ </picture>
+</a>
