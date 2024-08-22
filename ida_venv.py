@@ -49,7 +49,7 @@ def _activate_venv(venv_path: Path) -> None:
         bin_dir = f"{base_path}/{BIN_PATH[os.name]}"
     except KeyError:
         # java/jython
-        raise RuntimeError("Jython not supported (yet?)")
+        raise RuntimeError("Jython not supported (yet?)") from None
 
     # add venv to list
     venvs = json.loads(os.environ.get("IDAVenvs", "[]"))
@@ -83,7 +83,8 @@ def create_venv(venv_path: Path) -> None:
 
 def activate_venv(venv_path: Path, dependencies: list[str] | None = None) -> None:
     print("[IDAVenv] activate_venv")
-    if not venv_path.is_dir():
+    python_path = venv_path / PYTHON_EXECUTABLE_PATH[os.name]
+    if not python_path.is_file():
         create_venv(venv_path)
 
     _activate_venv(venv_path)
@@ -112,6 +113,8 @@ def deactivate_venv() -> None:
     # TODO! improve this
     to_remove = []
     for name, module in sys.modules.items():
+        if not module:
+            continue
         try:
             if module.__file__.startswith(venv_dict["VIRTUAL_ENV"]):
                 to_remove.append(name)
